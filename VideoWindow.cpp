@@ -41,6 +41,7 @@ CVideoWindowWrapper::~CVideoWindowWrapper(){
 		m_pvideo_src.release();
 	}
 	catch(...){
+		//TODO: A bug occurs when releasing the resources. But I cannot locate it.
 		cout<<"problem"<<endl;
 	}
 }
