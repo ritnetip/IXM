@@ -6,10 +6,8 @@
  *
  *  Description: a test project for video stitching with openCV.
  */
-
-#include "cv.hpp"
-#include "highgui/highgui.hpp"
-#include "videoio.hpp"
+#include "../Inc/VideoWrapper.hpp"
+#include "../Inc/VideoWindow.hpp"
 #include "stitching.hpp"
 
 #include <iostream>
@@ -25,10 +23,6 @@ int main(int argc, char** argv) {
 	     return -1;
 	}
 
-
-	Mat frame_1st;
-	Mat frame_2nd;
-
 	Mat stitching_res;
 
 	Stitcher image_stitcher = Stitcher::createDefault();
@@ -36,6 +30,9 @@ int main(int argc, char** argv) {
 	Size res_sz;
 
 	if (string(argv[1]) == "-i"){
+		Mat frame_1st;
+		Mat frame_2nd;
+
 		frame_1st = imread(argv[2], CV_LOAD_IMAGE_COLOR);
 		frame_2nd = imread(argv[3], CV_LOAD_IMAGE_COLOR);
 
@@ -99,14 +96,14 @@ int main(int argc, char** argv) {
 		}
 	}
 	else if (string(argv[1]) == "-v"){
-		VideoCapture first_video(argv[2]);
-		VideoCapture second_video(argv[3]);
+		Ptr<CVideoReaderWrapper> p_first_cap {new CVideoReaderWrapper(argv[2])};
+		Ptr<CVideoReaderWrapper> p_second_cap {new CVideoReaderWrapper(argv[3])};
 
-		double fr_width_1st = first_video.get(CV_CAP_PROP_FRAME_WIDTH);
-		double fr_height_1st = first_video.get(CV_CAP_PROP_FRAME_HEIGHT);
+		double fr_width_1st = p_first_cap->get_frame_width();
+		double fr_height_1st = p_first_cap->get_frame_height();
 
-		double fr_width_2nd = second_video.get(CV_CAP_PROP_FRAME_WIDTH);
-		double fr_height_2nd = second_video.get(CV_CAP_PROP_FRAME_HEIGHT);
+		double fr_width_2nd = p_second_cap->get_frame_width();
+		double fr_height_2nd = p_second_cap->get_frame_height();
 
 		int flag_resize = 0;
 		if (fr_width_1st > fr_width_2nd || fr_height_1st > fr_height_2nd){
@@ -124,78 +121,97 @@ int main(int argc, char** argv) {
 			frame_sz = Size(int(fr_width_1st), int(fr_height_1st));
 		}
 
-		VideoWriter video_output;
-		video_output.open("test.mp4", VideoWriter::fourcc('m','p','4','v'), 24, frame_sz);
+		int fourcc_code = 0x00000020;
+		Ptr<CVideoWriterWrapper> pvideo_out{new CVideoWriterWrapper()};
+
+		char dst_name[] = "test.mp4";
+		pvideo_out->create_video_file(dst_name, fourcc_code, 25, frame_sz);
 		//reading frame sequences
-		bool flag_exit = false;
-		Mat tmp_frame;
-		while (!flag_exit){
-			first_video >> frame_1st;
-			second_video >> frame_2nd;
 
-			if (frame_1st.empty() || frame_2nd.empty()){
-				flag_exit = true;
-				break;
-			}
+		CVideoWindowWrapper first_video_window(string("first").c_str(), p_first_cap.get());
+		first_video_window.resize(800, 600);
+		CVideoWindowWrapper second_video_window(string("second").c_str(), p_second_cap.get());
+		second_video_window.resize(800, 600);
 
-			switch(flag_resize){
-				case 1:{
-					tmp_frame.release();
-					resize(frame_1st, tmp_frame, Size(fr_width_2nd, fr_height_2nd));
+		char key_ret = cvWaitKey(0);
 
-					frame_1st = tmp_frame;
-				}
-				case 2:{
-					tmp_frame.release();
-					resize(frame_2nd, tmp_frame, Size(fr_width_2nd, fr_height_2nd));
+		if (key_ret > 0){
+			int pos_first_frame = first_video_window.get_current_frame_pos();
+			int pos_second_frame = second_video_window.get_current_frame_pos();
 
-					frame_2nd = tmp_frame;
-				}
-				default:
-					//pass
+			cout<<"fisrt pos: "<<pos_first_frame<<" second pos: "<<pos_second_frame<<endl;
+
+			bool flag_exit = false;
+			Mat tmp_frame;
+			while (!flag_exit){
+				Ptr<Mat> first_frame = p_first_cap->get_frame(pos_first_frame++);
+				Ptr<Mat> second_frame = p_second_cap->get_frame(pos_second_frame++);
+
+				if (first_frame->empty() || second_frame->empty()){
+					flag_exit = true;
 					break;
-			}
+				}
 
-			vector<Mat> input_fr_array;
-			input_fr_array.push_back(frame_1st);
-			input_fr_array.push_back(frame_2nd);
+				switch(flag_resize){
+					case 1:{
+						tmp_frame.release();
+						resize(*first_frame, tmp_frame, Size(fr_width_2nd, fr_height_2nd));
 
-			Stitcher::Status ret_status = image_stitcher.stitch(input_fr_array, stitching_res);
-			if (ret_status == Stitcher::OK){
-				cout<<"succeed in stitching"<<endl;
-
-				res_sz = stitching_res.size();
-				tmp_frame.release();
-
-				resize(stitching_res, tmp_frame, frame_sz);
-
-				video_output << tmp_frame;
-			}
-			else if (ret_status == Stitcher::ERR_NEED_MORE_IMGS){
-				//see what happens in the stitching process
-				Stitcher::Status ret_trans = image_stitcher.estimateTransform(input_fr_array);
-				if (ret_trans == Stitcher::OK){
-					Stitcher::Status ret_comp = image_stitcher.composePanorama(input_fr_array, stitching_res);
-
-					if (ret_comp == Stitcher::ERR_NEED_MORE_IMGS){
-						cout<<"image composition has failed"<<endl;
+						first_frame.reset(& tmp_frame);
+						break;
 					}
-				}
-				else{
-					cout<<"Transform matrix estimation has failed : ERR_NEED_MORE_IMGS"<<endl;
+					case 2:{
+						tmp_frame.release();
+						resize(*second_frame, tmp_frame, Size(fr_width_2nd, fr_height_2nd));
+
+						second_frame.reset(& tmp_frame);
+						break;
+					}
+					default:
+						//pass
+						break;
 				}
 
-			}
-			else if (ret_status == Stitcher::ERR_HOMOGRAPHY_EST_FAIL){
-				cout<<"Transform matrix estimation has failed: ERR_HOMOGRAPHY_EST_FAIL"<<endl;
-			}
-			else if (ret_status == Stitcher::ERR_CAMERA_PARAMS_ADJUST_FAIL){
-				cout<<"Camera estimation has failed"<<endl;
+				vector<Mat> input_fr_array;
+				input_fr_array.push_back(*first_frame);
+				input_fr_array.push_back(*second_frame);
+
+				Stitcher::Status ret_status = image_stitcher.stitch(input_fr_array, stitching_res);
+				if (ret_status == Stitcher::OK){
+					cout<<"succeed in stitching"<<endl;
+
+					res_sz = stitching_res.size();
+					tmp_frame.release();
+
+					resize(stitching_res, tmp_frame, frame_sz);
+
+					pvideo_out->Write(tmp_frame, true);
+				}
+				else if (ret_status == Stitcher::ERR_NEED_MORE_IMGS){
+					//see what happens in the stitching process
+					Stitcher::Status ret_trans = image_stitcher.estimateTransform(input_fr_array);
+					if (ret_trans == Stitcher::OK){
+						Stitcher::Status ret_comp = image_stitcher.composePanorama(input_fr_array, stitching_res);
+
+						if (ret_comp == Stitcher::ERR_NEED_MORE_IMGS){
+							cout<<"image composition has failed"<<endl;
+						}
+					}
+					else{
+						cout<<"Transform matrix estimation has failed : ERR_NEED_MORE_IMGS"<<endl;
+					}
+
+				}
+				else if (ret_status == Stitcher::ERR_HOMOGRAPHY_EST_FAIL){
+					cout<<"Transform matrix estimation has failed: ERR_HOMOGRAPHY_EST_FAIL"<<endl;
+				}
+				else if (ret_status == Stitcher::ERR_CAMERA_PARAMS_ADJUST_FAIL){
+					cout<<"Camera estimation has failed"<<endl;
+				}
 			}
 		}
 	}
 
-
-	waitKey();
+	destroyAllWindows();
 	return 0;
 }
