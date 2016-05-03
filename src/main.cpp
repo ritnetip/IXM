@@ -6,8 +6,8 @@
  *
  *  Description: a test project for video stitching with openCV.
  */
-#include "../Inc/VideoWrapper.hpp"
-#include "../Inc/VideoWindow.hpp"
+#include "../include/VideoWrapper.hpp"
+#include "../include/VideoWindow.hpp"
 #include "stitching.hpp"
 
 #include <iostream>

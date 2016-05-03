@@ -9,7 +9,7 @@
 #include "cv.hpp"
 #include "highgui/highgui.hpp"
 
-#include "../Inc/VideoWrapper.hpp"
+#include "../include/VideoWrapper.hpp"
 #include <string>
 
 using namespace cv;

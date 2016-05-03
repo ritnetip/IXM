@@ -5,8 +5,8 @@
  *      Author: Wenbo
  */
 
-#include "../Inc/VideoWindow.hpp"
-#include "../Inc/VideoWrapper.hpp"
+#include "../include/VideoWindow.hpp"
+#include "../include/VideoWrapper.hpp"
 #include "highgui/highgui.hpp"
 
 using namespace std;
